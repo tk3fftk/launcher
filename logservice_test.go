@@ -127,8 +127,8 @@ func TestProcessLogsTime(t *testing.T) {
 	uploader := mockS3FileUploader{}
 	uploaded := make(chan struct{})
 	uploader.upload = func(bucket, key string, input *os.File) error {
-		uploaded <- struct{}{}
 		callCount++
+		uploaded <- struct{}{}
 		return nil
 	}
 
@@ -157,5 +157,53 @@ func TestProcessLogsTime(t *testing.T) {
 	}
 	if elapsed >= time.Duration(2*uploadInterval) {
 		t.Errorf("Waited %s for an upload. Want %s", elapsed, time.Duration(uploadInterval))
+	}
+}
+
+func TestProcessLogsLine(t *testing.T) {
+	buildID := "testbuild123"
+	stepName := "step1"
+	oldUploadInterval := uploadInterval
+	defer func() { uploadInterval = oldUploadInterval }()
+	uploader := mockS3FileUploader{}
+	uploadInterval = 20 * time.Second
+
+	uploaded := make(chan struct{})
+	uploader.upload = func(bucket, key string, input *os.File) error {
+		uploaded <- struct{}{}
+		return nil
+	}
+
+	logChan := make(chan *logLine, 350)
+
+	go processLogs(&uploader, buildID, stepName, logChan)
+
+	for i := 0; i <= 199; i++ {
+		logChan <- &logLine{time.Now().UnixNano(), fmt.Sprintf("Msg %d", i), stepName}
+	}
+
+	bailTimer := time.NewTimer(20 * time.Millisecond)
+	select {
+	case <-bailTimer.C:
+	case <-uploaded:
+		t.Errorf("Upload should not happen")
+	}
+	bailTimer.Stop()
+
+	logChan <- &logLine{time.Now().UnixNano(), fmt.Sprintf("Msg %d", 200), stepName}
+	bailTimer = time.NewTimer(20 * time.Millisecond)
+	select {
+	case <-bailTimer.C:
+		t.Errorf("Upload was never called")
+	case <-uploaded:
+	}
+
+	logChan <- &logLine{time.Now().UnixNano(), fmt.Sprintf("Msg %d", 200), stepName}
+	close(logChan)
+	bailTimer = time.NewTimer(20 * time.Millisecond)
+	select {
+	case <-bailTimer.C:
+		t.Errorf("Upload was never called")
+	case <-uploaded:
 	}
 }

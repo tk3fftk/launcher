@@ -175,7 +175,6 @@ func processLogs(u s3fileuploader.S3FileUploader, buildID, stepName string, logs
 
 		case <-t:
 			upload()
-			upload()
 		}
 	}
 }
