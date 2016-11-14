@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/screwdriver-cd/launcher/executor"
-	"github.com/screwdriver-cd/launcher/git"
+	// "github.com/screwdriver-cd/launcher/git"
 	"github.com/screwdriver-cd/launcher/screwdriver"
 )
 
@@ -27,41 +27,41 @@ const (
 	TestSHA    = "abc123"
 )
 
-var TestScmRepo = screwdriver.ScmRepo(FakeScmRepo{
-	Name: "screwdriver-cd/launcher",
-})
+// var TestScmRepo = screwdriver.ScmRepo(FakeScmRepo{
+// 	Name: "screwdriver-cd/launcher",
+// })
 
 type FakeBuild screwdriver.Build
 type FakeJob screwdriver.Job
 type FakePipeline screwdriver.Pipeline
-type FakeScmRepo screwdriver.ScmRepo
+// type FakeScmRepo screwdriver.ScmRepo
 
-type MockRepo struct {
-	checkout func() error
-	mergePR  func(string, string) error
-	path     func() string
-}
-
-func (r MockRepo) Checkout() error {
-	if r.checkout != nil {
-		return r.checkout()
-	}
-	return nil
-}
-
-func (r MockRepo) MergePR(prNumber, sha string) error {
-	if r.mergePR != nil {
-		return r.mergePR(prNumber, sha)
-	}
-	return nil
-}
-
-func (r MockRepo) Path() string {
-	if r.path != nil {
-		return r.path()
-	}
-	return ""
-}
+// type MockRepo struct {
+// 	checkout func() error
+// 	mergePR  func(string, string) error
+// 	path     func() string
+// }
+//
+// func (r MockRepo) Checkout() error {
+// 	if r.checkout != nil {
+// 		return r.checkout()
+// 	}
+// 	return nil
+// }
+//
+// func (r MockRepo) MergePR(prNumber, sha string) error {
+// 	if r.mergePR != nil {
+// 		return r.mergePR(prNumber, sha)
+// 	}
+// 	return nil
+// }
+//
+// func (r MockRepo) Path() string {
+// 	if r.path != nil {
+// 		return r.path()
+// 	}
+// 	return ""
+// }
 
 func mockAPI(t *testing.T, testBuildID, testJobID, testPipelineID string, testStatus screwdriver.BuildStatus) MockAPI {
 	return MockAPI{

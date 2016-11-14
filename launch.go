@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -14,7 +15,7 @@ import (
 	"time"
 
 	"github.com/screwdriver-cd/launcher/executor"
-	"github.com/screwdriver-cd/launcher/git"
+	// "github.com/screwdriver-cd/launcher/git"
 	"github.com/screwdriver-cd/launcher/screwdriver"
 	"github.com/urfave/cli"
 )
@@ -24,11 +25,12 @@ var VERSION string
 
 var mkdirAll = os.MkdirAll
 var stat = os.Stat
-var newRepo = git.New
+// var newRepo = git.New
 var open = os.Open
 var executorRun = executor.Run
 var writeFile = ioutil.WriteFile
 var newEmitter = screwdriver.NewEmitter
+var execCommand = exec.Command
 
 var cleanExit = func() {
 	os.Exit(0)
@@ -46,16 +48,16 @@ func exit(status screwdriver.BuildStatus, buildID string, api screwdriver.API) {
 	cleanExit()
 }
 
-type scmPath struct {
-	Host   string
-	Org    string
-	Repo   string
-	Branch string
-}
+// type repo.Path struct {
+// 	Host   string
+// 	Org    string
+// 	Repo   string
+// 	Branch string
+// }
 
-func (s scmPath) httpsString() string {
-	return fmt.Sprintf("https://%s/%s/%s#%s", s.Host, s.Org, s.Repo, s.Branch)
-}
+// func (s scmPath) httpsString() string {
+// 	return fmt.Sprintf("https://%s/%s/%s#%s", s.Host, s.Org, s.Repo, s.Branch)
+// }
 
 // e.g. scmUri: "github:123456:master", scmName: "screwdriver-cd/launcher"
 func parseScmUri(scmUri, scmName string) (scmPath, error) {
@@ -82,8 +84,8 @@ type Workspace struct {
 }
 
 // createWorkspace makes a Scrwedriver workspace from path components
-// e.g. ["github.com", "screwdriver-cd" "screwdriver"] creates
-//     /sd/workspace/src/github.com/screwdriver-cd/screwdriver
+// e.g. ["github.com", "screwdriver-cd"] creates
+//     /sd/workspace/src/github.com/screwdriver-cd
 //     /sd/workspace/artifacts
 func createWorkspace(rootDir string, srcPaths ...string) (Workspace, error) {
 	srcPaths = append([]string{"src"}, srcPaths...)
@@ -130,17 +132,17 @@ func writeArtifact(aDir string, fName string, artifact interface{}) error {
 
 	return nil
 }
-
-// prNumber checks to see if the job name is a pull request and returns its number
-func prNumber(jobName string) string {
-	r := regexp.MustCompile("^PR-([0-9]+)$")
-	matched := r.FindStringSubmatch(jobName)
-	if matched == nil || len(matched) != 2 {
-		return ""
-	}
-	log.Println("Build is a PR: ", matched[1])
-	return matched[1]
-}
+//
+// // prNumber checks to see if the job name is a pull request and returns its number
+// func prNumber(jobName string) string {
+// 	r := regexp.MustCompile("^PR-([0-9]+)$")
+// 	matched := r.FindStringSubmatch(jobName)
+// 	if matched == nil || len(matched) != 2 {
+// 		return ""
+// 	}
+// 	log.Println("Build is a PR: ", matched[1])
+// 	return matched[1]
+// }
 
 func launch(api screwdriver.API, buildID, rootDir, emitterPath string) error {
 	emitter, err := newEmitter(emitterPath)
@@ -182,40 +184,47 @@ func launch(api screwdriver.API, buildID, rootDir, emitterPath string) error {
 	}
 
 	log.Printf("Creating Workspace in %v", rootDir)
-	w, err := createWorkspace(rootDir, scm.Host, scm.Org, scm.Repo)
+	w, err := createWorkspace(rootDir, scm.Host, scm.Org)
 	if err != nil {
 		return err
 	}
 
 	oldJobName := j.Name
-	pr := prNumber(j.Name)
-	if pr != "" {
-		j.Name = "main"
-	}
 
-	// For PRs, we are fine with merging to the latest version of the branch.
-	// The SHA that we get from the Build is the SHA of the commit that we are building.
-	checkoutSHA := b.SHA
-	if pr != "" {
-		checkoutSHA = scm.Branch
-	}
+	// Get checkout commands from build
+	execCommand("cd", w.src).Run()
+	checkoutCommand := b.steps[1].command
 
-	repo, err := newRepo(scm.httpsString(), checkoutSHA, w.Src, emitter)
-	if err != nil {
-		return err
-	}
 
-	err = repo.Checkout()
-	if err != nil {
-		return err
-	}
 
-	if pr != "" {
-		err = repo.MergePR(pr, b.SHA)
-		if err != nil {
-			return err
-		}
-	}
+	// pr := prNumber(j.Name)
+	// if pr != "" {
+	// 	j.Name = "main"
+	// }
+	//
+	// // For PRs, we are fine with merging to the latest version of the branch.
+	// // The SHA that we get from the Build is the SHA of the commit that we are building.
+	// checkoutSHA := b.SHA
+	// if pr != "" {
+	// 	checkoutSHA = scm.Branch
+	// }
+	//
+	// repo, err := newRepo(scm.httpsString(), checkoutSHA, w.Src, emitter)
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// err = repo.Checkout()
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// if pr != "" {
+	// 	err = repo.MergePR(pr, b.SHA)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	err = writeArtifact(w.Artifacts, "steps.json", b.Commands)
 	if err != nil {
